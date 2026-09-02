@@ -4,6 +4,7 @@ import os
 from functools import lru_cache
 
 from fastapi import Depends, FastAPI, HTTPException
+from openai import OpenAIError
 
 from .infrai_client import InfraiClient, InfraiError
 from .search_service import SaaSOpsSearch, SearchRequest, SearchResponse
@@ -31,4 +32,10 @@ def search(
             status_code=status,
             detail={"code": exc.code, "message": str(exc)},
         ) from exc
-
+    except OpenAIError as exc:
+        upstream_status = getattr(exc, "status_code", None)
+        status = upstream_status if isinstance(upstream_status, int) and 400 <= upstream_status < 500 else 502
+        raise HTTPException(
+            status_code=status,
+            detail={"code": "openai_error", "message": str(exc)},
+        ) from exc
