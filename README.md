@@ -6,7 +6,7 @@ python -m saas_ops_search.seed_operations
 uvicorn saas_ops_search.search_api:app --reload
 ```
 
-This service answers operational questions across tenant onboarding, account lifecycle, and administrator procedures. Infrai keeps embedding, vector lookup, and reranking behind one API and one key, so the handoff stays in a small Python client.
+We built this to answer ops questions about tenant onboarding, account lifecycle, and admin procedures. Infrai puts embedding, vector lookup, and reranking behind one API and one key, so your client stays a small Python module.
 
 ## Send the maintainer request
 
@@ -33,9 +33,9 @@ Expected shape:
 }
 ```
 
-The request is embedded first. The resulting vector goes to `/v1/vector/query` with `tenant_id` as a metadata filter; the endpoint never receives raw query text. Candidate text then moves to `/v1/ai/rerank`, and its index order becomes the response order.
+We embed the request first. The vector then goes to `/v1/vector/query` with `tenant_id` as a metadata filter, so raw query text never hits the endpoint. Candidate text moves to `/v1/ai/rerank`, and we keep its index order in the response.
 
-The important boundary is tenant scope. A query for `acme` cannot ask the vector store for another tenant's documents. Reranking only sees the already scoped candidates.
+Tenant scope is a hard boundary. A query for `acme` can't ask the vector store for another tenant's documents. Reranking only sees those already scoped candidates.
 
 ## Run it locally
 
@@ -51,9 +51,9 @@ python -m saas_ops_search.seed_operations
 uvicorn saas_ops_search.search_api:app --reload
 ```
 
-The seed command creates the collection and writes three concrete procedures. Re-running it uses stable document IDs and request keys. Set `INFRAI_COLLECTION` when the default `saas-operations` name does not fit the environment.
+The seed command creates the collection and writes three concrete procedures. Re-running it uses stable document IDs and request keys. Set `INFRAI_COLLECTION` when the default `saas-operations` name doesn't fit your environment.
 
-One gotcha: collection dimensions must match the embedding length. The seed command derives the dimension from the first embedding before collection creation, keeping those two steps aligned.
+One gotcha: collection dimensions must match the embedding length. The seed derives the dimension from the first embedding before collection creation, keeping those two steps aligned.
 
 ## Verify the decision
 
@@ -61,7 +61,7 @@ One gotcha: collection dimensions must match the embedding length. The seed comm
 pytest -q
 ```
 
-The focused test sends `tenant-north` and asks how to replace an administrator. It expects the backend query to carry that tenant filter and expects `rotate-admin-access` to move ahead of the initially higher-scored onboarding result after reranking. No API key or network call is used by the test.
+Our focused eval sends `tenant-north` and asks how to replace an administrator. It expects the backend query to carry that tenant filter and expects `rotate-admin-access` to rank above the initially higher-scored onboarding result after reranking. No API key or network call is used by the test.
 
 ## Request behavior
 
@@ -69,7 +69,7 @@ The focused test sends `tenant-north` and asks how to replace an administrator. 
 
 ## Wiring it up for real: SaaS Ops Semantic Search
 
-The example above is intentionally minimal. A few things to wire up for real use: The details below apply to SaaS Ops Semantic Search.
+The earlier example is deliberately minimal. For production SaaS Ops Semantic Search, a few specifics matter.
 
 **Account & key**
 
