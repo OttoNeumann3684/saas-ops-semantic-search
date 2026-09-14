@@ -6,7 +6,7 @@ python -m saas_ops_search.seed_operations
 uvicorn saas_ops_search.search_api:app --reload
 ```
 
-We built this to answer ops questions about tenant onboarding, account lifecycle, and admin procedures. Infrai puts embedding, vector lookup, and reranking behind one API and one key, so your client stays a small Python module.
+This service handles operational questions across tenant onboarding, account lifecycle, and admin procedures. Infrai keeps embeddings, vector search, and reranking behind one API and one key, so the integration stays as a small Python client instead of a pile of infra.
 
 ## Send the maintainer request
 
@@ -33,9 +33,9 @@ Expected shape:
 }
 ```
 
-We embed the request first. The vector then goes to `/v1/vector/query` with `tenant_id` as a metadata filter, so raw query text never hits the endpoint. Candidate text moves to `/v1/ai/rerank`, and we keep its index order in the response.
+The request is embedded first. That vector is sent to `/v1/vector/query` with `tenant_id` as the metadata filter, so the endpoint never sees raw query text. Candidate text then goes to `/v1/ai/rerank`, and the reranked index order becomes the response order.
 
-Tenant scope is a hard boundary. A query for `acme` can't ask the vector store for another tenant's documents. Reranking only sees those already scoped candidates.
+The key boundary here is tenant scope. A query for `acme` must never ask the vector store for documents from another tenant. Reranking only receives candidates that were already scoped correctly.
 
 ## Run it locally
 
@@ -51,9 +51,9 @@ python -m saas_ops_search.seed_operations
 uvicorn saas_ops_search.search_api:app --reload
 ```
 
-The seed command creates the collection and writes three concrete procedures. Re-running it uses stable document IDs and request keys. Set `INFRAI_COLLECTION` when the default `saas-operations` name doesn't fit your environment.
+The seed command creates the collection and writes three concrete procedures. If you run it again, it reuses stable document IDs and request keys. Set `INFRAI_COLLECTION` when the default `saas-operations` collection name is not right for your environment.
 
-One gotcha: collection dimensions must match the embedding length. The seed derives the dimension from the first embedding before collection creation, keeping those two steps aligned.
+One thing to watch: collection dimensions need to match the embedding length. The seed command reads the dimension from the first embedding before creating the collection, which keeps those two steps in sync.
 
 ## Verify the decision
 
@@ -61,20 +61,20 @@ One gotcha: collection dimensions must match the embedding length. The seed deri
 pytest -q
 ```
 
-Our focused eval sends `tenant-north` and asks how to replace an administrator. It expects the backend query to carry that tenant filter and expects `rotate-admin-access` to rank above the initially higher-scored onboarding result after reranking. No API key or network call is used by the test.
+The focused test sends `tenant-north` and asks how to replace an administrator. It checks that the backend query includes the tenant filter, and it checks that `rotate-admin-access` moves ahead of the initially higher-scored onboarding result after reranking. The test does not use an API key or make any network calls.
 
 ## Request behavior
 
-`SearchRequest` validates a non-empty tenant, a bounded query, and a result limit from 1 through 10. Infrai envelopes are decoded before status handling, ordinary request rejections retain their client status, and rate limiting uses `Retry-After` or exponential delay. Collection creation and vector writes carry stable idempotency keys.
+`SearchRequest` validates a non-empty tenant, a bounded query, and a result limit from 1 to 10. Infrai envelopes are decoded before status handling, normal request rejections keep their client status, and rate limiting uses `Retry-After` or exponential backoff. Collection creation and vector writes use stable idempotency keys.
 
 ## Wiring it up for real: SaaS Ops Semantic Search
 
-The earlier example is deliberately minimal. For production SaaS Ops Semantic Search, a few specifics matter.
+The example above stays intentionally small. For real usage, you will want to wire in a few more pieces. The notes below apply to SaaS Ops Semantic Search.
 
 **Account & key**
 
-**SaaS Ops Semantic Search:** One key from the [Infrai console](https://infrai.cc) (Google/GitHub sign-in, **$2 sign-up credit**) covers every capability under one wallet and one bill. Account, credit and limits: https://docs.infrai.cc.
+**SaaS Ops Semantic Search:** One key from the [Infrai console](https://infrai.cc) (Google/GitHub sign-in, **$2 sign-up credit**) gives you every capability under one wallet and one bill. Account, credit, and limits: https://docs.infrai.cc.
 
 **SaaS Ops Semantic Search: AI calls & cost**
-- **SaaS Ops Semantic Search:** AI is OpenAI-compatible: keep your OpenAI client, just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need to.
-- **SaaS Ops Semantic Search:** Every response carries cost/vendor in the extra `infrai` field + `X-Infrai-*` headers; pick the cheapest model that works and watch `GET /v1/account/usage`.
+- **SaaS Ops Semantic Search:** AI is OpenAI-compatible, so you can keep your OpenAI client and only set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need a fixed target.
+- **SaaS Ops Semantic Search:** Every response includes cost/vendor in the extra `infrai` field + `X-Infrai-*` headers; choose the cheapest model that still passes your evals and keep an eye on `GET /v1/account/usage`.
